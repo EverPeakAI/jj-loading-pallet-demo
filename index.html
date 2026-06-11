@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>J&J Loading — Pallet Returns & Inventory</title>
+<style>
+  :root{
+    --bg:#f5f6f9; --panel:#ffffff; --ink:#1a1730; --muted:#6b6880; --line:#e7e7ef;
+    --brand:#7F56EF; --brand2:#5B7FE6; --teal:#3FB7C6; --dark:#211b46; --dark2:#171236;
+    --b-expected:#E8930C; --b-out:#5B7FE6; --b-yard:#7F56EF; --b-returned:#F2784B;
+    --b-credited:#16A06A; --b-disc:#E5484D;
+    --shadow:0 1px 2px rgba(20,16,50,.06),0 8px 24px rgba(20,16,50,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;font-size:14px}
+  .wrap{max-width:1320px;margin:0 auto;padding:0 22px 64px}
+
+  /* Header */
+  header{background:linear-gradient(110deg,var(--dark2),var(--dark) 60%,#2c2358);color:#fff}
+  .hbar{max-width:1320px;margin:0 auto;padding:16px 22px;display:flex;align-items:center;gap:14px}
+  .mark{width:34px;height:34px;flex:0 0 auto}
+  .brandname{font-weight:700;letter-spacing:.3px;font-size:16px}
+  .brandsub{font-size:11.5px;color:#b9b4d6;margin-top:1px}
+  .powered{margin-left:auto;font-size:11px;color:#b9b4d6;display:flex;align-items:center;gap:7px}
+  .powered svg{opacity:.9}
+
+  /* KPI strip */
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin:22px 0}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 16px 14px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+  .kpi .cap{font-size:11.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+  .kpi .val{font-size:26px;font-weight:750;margin-top:8px;letter-spacing:-.5px}
+  .kpi .sub{font-size:11.5px;color:var(--muted);margin-top:3px}
+  .kpi::after{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--brand)}
+  .kpi.k-yard::after{background:var(--b-yard)} .kpi.k-pend::after{background:var(--b-returned)}
+  .kpi.k-disc::after{background:var(--b-disc)} .kpi.k-cred::after{background:var(--b-credited)}
+  .kpi.k-total::after{background:var(--brand2)}
+  .kpi.alert .val{color:var(--b-disc)}
+
+  /* Toolbar */
+  .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .toolbar .grow{flex:1}
+  .btn{border:1px solid var(--line);background:#fff;color:var(--ink);padding:9px 14px;border-radius:10px;
+    font-weight:600;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:.15s}
+  .btn:hover{border-color:#cfcce0;box-shadow:var(--shadow)}
+  .btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+  .btn.primary:hover{background:#6f45e6}
+  .btn.ghost{background:transparent}
+  .search{border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 12px;font-size:13px;min-width:210px}
+
+  /* Bucket tiles */
+  .buckets{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:18px}
+  .bk{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 13px;cursor:pointer;transition:.15s;position:relative}
+  .bk:hover{border-color:#cfcce0;box-shadow:var(--shadow)}
+  .bk.active{border-color:var(--brand);box-shadow:0 0 0 2px rgba(127,86,239,.18)}
+  .bk .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7px;vertical-align:middle}
+  .bk .nm{font-size:12px;font-weight:650;color:var(--muted);vertical-align:middle}
+  .bk .ct{font-size:22px;font-weight:750;margin-top:7px;letter-spacing:-.5px}
+  .bk .pl{font-size:11px;color:var(--muted);margin-top:1px}
+  .d-expected{background:var(--b-expected)} .d-out{background:var(--b-out)} .d-yard{background:var(--b-yard)}
+  .d-returned{background:var(--b-returned)} .d-credited{background:var(--b-credited)} .d-disc{background:var(--b-disc)}
+
+  /* Table */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+  .card .head{display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .card .head h3{margin:0;font-size:14px}
+  .card .head .hint{margin-left:auto;font-size:12px;color:var(--muted)}
+  table{width:100%;border-collapse:collapse}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);text-align:left;
+    padding:11px 14px;border-bottom:1px solid var(--line);font-weight:650;white-space:nowrap}
+  td{padding:12px 14px;border-bottom:1px solid #f1f1f6;font-size:13px;vertical-align:middle}
+  tr:last-child td{border-bottom:none}
+  tbody tr{cursor:pointer;transition:.1s}
+  tbody tr:hover{background:#faf9ff}
+  tr.disc{background:#fff5f5}
+  tr.disc:hover{background:#ffefef}
+  .job{font-weight:650} .cust{color:var(--muted);font-size:12px;margin-top:1px}
+  .refs{font-variant-numeric:tabular-nums;font-size:12px;color:var(--muted);line-height:1.5}
+  .num{font-variant-numeric:tabular-nums;text-align:right;font-weight:600}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:650;padding:4px 9px;border-radius:999px;white-space:nowrap}
+  .pill .dot{width:7px;height:7px;border-radius:50%}
+  .p-expected{background:#fdf0db;color:#9a5d05} .p-out{background:#e8eefc;color:#2f51b5}
+  .p-yard{background:#efe8fd;color:#5e34c9} .p-returned{background:#fde8df;color:#bb4a22}
+  .p-credited{background:#e2f5ec;color:#0f7a4f}
+  .warn{color:var(--b-disc);font-weight:700;font-size:11.5px;display:inline-flex;align-items:center;gap:4px}
+  .credit{font-variant-numeric:tabular-nums;font-weight:700;text-align:right}
+
+  /* Empty state */
+  .empty{background:var(--panel);border:1px dashed #d4d2e2;border-radius:16px;padding:60px 24px;text-align:center;box-shadow:var(--shadow)}
+  .empty .ic{width:64px;height:64px;margin:0 auto 16px;border-radius:16px;background:linear-gradient(135deg,#efe8fd,#e3ecfc);display:flex;align-items:center;justify-content:center}
+  .empty h2{margin:0 0 6px;font-size:20px}
+  .empty p{margin:0 auto 22px;color:var(--muted);max-width:440px;line-height:1.5}
+
+  /* Modal */
+  .scrim{position:fixed;inset:0;background:rgba(23,18,54,.45);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:50;padding:24px}
+  .scrim.show{display:flex}
+  .modal{background:#fff;border-radius:16px;max-width:680px;width:100%;max-height:88vh;overflow:auto;box-shadow:0 24px 64px rgba(20,16,50,.3)}
+  .modal .mh{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  .modal .mh h3{margin:0;font-size:16px}
+  .modal .mh .x{margin-left:auto;cursor:pointer;color:var(--muted);font-size:20px;line-height:1;border:none;background:none}
+  .modal .mb{padding:20px 22px}
+  .modal .mf{padding:16px 22px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;background:#fafaff;border-radius:0 0 16px 16px}
+  .field{margin-bottom:14px} .field label{display:block;font-size:12px;font-weight:650;color:var(--muted);margin-bottom:6px}
+  .field select,.field input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;background:#fff}
+  .retrow{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px}
+  .retrow input{width:16px;height:16px} .retrow .g{flex:1} .retrow .g b{font-size:13px} .retrow .g span{display:block;font-size:11.5px;color:var(--muted)}
+  .rettot{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding:14px 16px;background:#f3f0ff;border-radius:12px}
+  .rettot .big{font-size:22px;font-weight:750;color:var(--brand)}
+
+  /* Return sheet (printable) */
+  .sheet{border:1px solid var(--line);border-radius:12px;padding:22px;font-size:13px}
+  .sheet .sh{display:flex;align-items:flex-start;border-bottom:2px solid var(--ink);padding-bottom:12px;margin-bottom:14px}
+  .sheet h2{margin:0;font-size:18px} .sheet .meta{margin-left:auto;text-align:right;color:var(--muted);font-size:12px;line-height:1.6}
+  .sheet table{margin-top:6px} .sheet th,.sheet td{padding:8px 6px;font-size:12px}
+  .sheet tfoot td{font-weight:750;border-top:2px solid var(--ink);font-size:13px}
+
+  /* Drawer */
+  .drawer{position:fixed;top:0;right:0;bottom:0;width:420px;max-width:92vw;background:#fff;box-shadow:-12px 0 40px rgba(20,16,50,.18);
+    transform:translateX(100%);transition:.22s cubic-bezier(.4,0,.2,1);z-index:40;overflow:auto}
+  .drawer.show{transform:translateX(0)}
+  .drawer .dh{padding:20px 22px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff}
+  .drawer .dh .x{float:right;cursor:pointer;color:var(--muted);font-size:20px;border:none;background:none}
+  .drawer .db{padding:20px 22px}
+  .kv{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #f3f3f8;font-size:13px}
+  .kv .k{color:var(--muted)} .kv .v{font-weight:650;font-variant-numeric:tabular-nums}
+  .recon{margin:16px 0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .recon .rr{display:flex;justify-content:space-between;padding:10px 14px;font-size:13px;border-bottom:1px solid #f3f3f8}
+  .recon .rr:last-child{border-bottom:none}
+  .recon .rr.bad{background:#fff5f5;color:#bb2d31;font-weight:650}
+  .attach{display:flex;align-items:center;gap:9px;padding:11px 13px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;font-size:13px}
+  .attach .ai{width:30px;height:30px;border-radius:7px;background:#f0eefb;display:flex;align-items:center;justify-content:center;font-size:15px}
+  .stage-btn{width:100%;margin-top:8px}
+
+  /* Toast */
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);background:var(--ink);color:#fff;
+    padding:12px 18px;border-radius:12px;font-size:13.5px;font-weight:600;box-shadow:0 12px 32px rgba(0,0,0,.25);opacity:0;
+    transition:.25s;z-index:60;display:flex;align-items:center;gap:10px;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .ck{color:#4ade80}
+  .demohint{font-size:11.5px;color:var(--muted);margin-top:18px;text-align:center}
+  @media (max-width:1080px){.kpis{grid-template-columns:repeat(2,1fr)}.buckets{grid-template-columns:repeat(3,1fr)}}
+</style>
+</head>
+<body>
+<header>
+  <div class="hbar">
+    <svg class="mark" viewBox="0 0 40 40" fill="none">
+      <rect x="4" y="22" width="14" height="6" rx="1.2" fill="#7F56EF"/>
+      <rect x="22" y="22" width="14" height="6" rx="1.2" fill="#5B7FE6"/>
+      <rect x="13" y="12" width="14" height="6" rx="1.2" fill="#3FB7C6"/>
+      <rect x="6" y="30" width="3" height="5" fill="#7F56EF"/><rect x="14" y="30" width="3" height="5" fill="#7F56EF"/>
+      <rect x="24" y="30" width="3" height="5" fill="#5B7FE6"/><rect x="32" y="30" width="3" height="5" fill="#5B7FE6"/>
+    </svg>
+    <div>
+      <div class="brandname">J&amp;J LOADING</div>
+      <div class="brandsub">Pallet Returns &amp; Inventory</div>
+    </div>
+    <div class="powered">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 18L9 9l4 5 3-4 5 8H3z" fill="#9b8fe0"/></svg>
+      Powered by EverPeak AI
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- Empty / import state -->
+  <div id="emptyState" class="empty">
+    <div class="ic">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="4" rx="1" fill="#7F56EF"/><rect x="3" y="10" width="18" height="4" rx="1" fill="#5B7FE6" opacity=".7"/><rect x="3" y="16" width="18" height="4" rx="1" fill="#3FB7C6" opacity=".5"/></svg>
+    </div>
+    <h2>Bring your pallet spreadsheet to life</h2>
+    <p>Import your current Numbers / Excel pallet-returns sheet and J&amp;J Loading will sort every pallet into the right bucket, flag discrepancies, and total the credit you're owed — automatically.</p>
+    <button class="btn primary" onclick="runImport()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v3h16v-3" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Import pallet spreadsheet
+    </button>
+    <div class="demohint">Demo · seeded with sample J&amp;J data (plants, customers &amp; reference numbers from discovery)</div>
+  </div>
+
+  <!-- Live app -->
+  <div id="app" style="display:none">
+    <div class="kpis" id="kpis"></div>
+
+    <div class="toolbar">
+      <button class="btn primary" onclick="openReturn()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M9 14l-4-4 4-4M5 10h11a4 4 0 010 8h-3" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Create Return
+      </button>
+      <button class="btn" onclick="addBatch()">+ Add batch</button>
+      <span class="grow"></span>
+      <input class="search" id="search" placeholder="Search job, customer, ref #…" oninput="render()">
+      <button class="btn ghost" onclick="resetDemo()">↺ Reset demo</button>
+    </div>
+
+    <div class="buckets" id="buckets"></div>
+
+    <div class="card">
+      <div class="head"><h3 id="tableTitle">All pallet batches</h3><span class="hint">Click any row for the full reconciliation &amp; documents</span></div>
+      <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>Job / Customer</th><th>Pickup plant</th><th>Reference #s</th>
+          <th class="num">Exp.</th><th class="num">Picked</th><th class="num">Deliv.</th><th class="num">Empties</th>
+          <th>Status</th><th class="credit">Credit</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Drawer -->
+<div class="drawer" id="drawer"><div id="drawerBody"></div></div>
+
+<!-- Return modal -->
+<div class="scrim" id="returnScrim">
+  <div class="modal">
+    <div class="mh"><h3 id="returnTitle">Create pallet return</h3><button class="x" onclick="closeModal('returnScrim')">×</button></div>
+    <div class="mb" id="returnBody"></div>
+    <div class="mf" id="returnFoot"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- Reference data (from discovery notes) ---------- */
+const PLANTS = {
+  wl_oke:{name:"Westlake — Okeechobee", short:"Westlake · Okeechobee", branch:"WL-OK", rate:15},
+  wl_lw :{name:"Westlake — Lake Wales", short:"Westlake · Lake Wales", branch:"WL-LW", rate:15},
+  wl_pom:{name:"Westlake — Pompano",    short:"Westlake · Pompano",    branch:"WL-PM", rate:14},
+  eg_sum:{name:"Eagle — Sumterville",   short:"Eagle · Sumterville",   branch:"EG-SV", rate:16},
+  eg_wpb:{name:"Eagle — West Palm Beach",short:"Eagle · West Palm",    branch:"EG-WP", rate:16},
+  cr_arc:{name:"Crown — Arcadia",       short:"Crown · Arcadia",       branch:"CR-AR", rate:12},
+};
+const BUCKETS = [
+  {key:"expected", nm:"Expected",            cls:"expected", desc:"On order, not picked up"},
+  {key:"out",      nm:"Out (in field)",      cls:"out",      desc:"Delivered, empties not recovered"},
+  {key:"yard",     nm:"At yard",             cls:"yard",     desc:"Staged for return"},
+  {key:"returned", nm:"Returned · pending",  cls:"returned", desc:"Awaiting credit"},
+  {key:"credited", nm:"Credited",            cls:"credited", desc:"Closed"},
+  {key:"disc",     nm:"Discrepancy",         cls:"disc",     desc:"Counts don't reconcile"},
+];
+const STATUS_PILL = {expected:["p-expected","d-expected","Expected"],out:["p-out","d-out","Out · in field"],
+  yard:["p-yard","d-yard","At yard"],returned:["p-returned","d-returned","Returned · pending"],credited:["p-credited","d-credited","Credited"]};
+
+/* ---------- Seed batches ---------- */
+const SEED = [
+  {id:"B-1041", job:"Harbor Oaks 236", cust:"QXO",            plant:"wl_oke", so:"SOFL-102341", po:"QX-8841",  bol:"", status:"expected", exp:96,  picked:null,deliv:null,empt:null, date:"Jun 11"},
+  {id:"B-1042", job:"Verano 88",       cust:"ABC Supply",     plant:"eg_sum", so:"SOFL-102358", po:"ABC-5520", bol:"", status:"expected", exp:72,  picked:null,deliv:null,empt:null, date:"Jun 11"},
+  {id:"B-1043", job:"Maple Ridge 14",  cust:"Parks Haven",    plant:"cr_arc", so:"SOFL-102366", po:"PH-2207",  bol:"", status:"expected", exp:48,  picked:null,deliv:null,empt:null, date:"Jun 12"},
+
+  {id:"B-1031", job:"Lakeshore 412",   cust:"QXO",            plant:"wl_oke", so:"SOFL-102298", po:"QX-8790",  bol:"BOL-44821", status:"out", exp:120,picked:120,deliv:120,empt:null, date:"Jun 9"},
+  {id:"B-1032", job:"Cedar Pointe 7",  cust:"CJM Roofing",    plant:"wl_lw",  so:"SOFL-102301", po:"CJM-119",  bol:"BOL-44830", status:"out", exp:84, picked:84, deliv:84, empt:null, date:"Jun 9"},
+  {id:"B-1033", job:"Bayview 210",     cust:"ABC Supply",     plant:"eg_wpb", so:"SOFL-102305", po:"ABC-5498", bol:"BOL-77104", status:"out", exp:60, picked:60, deliv:60, empt:null, date:"Jun 9"},
+
+  {id:"B-1018", job:"Stonebrook 55",   cust:"QXO",            plant:"wl_oke", so:"SOFL-102240", po:"QX-8702",  bol:"BOL-44760", status:"yard", exp:144,picked:144,deliv:144,empt:144, date:"Jun 7"},
+  {id:"B-1019", job:"Palm Grove 132",  cust:"ABC Supply",     plant:"wl_oke", so:"SOFL-102244", po:"ABC-5471", bol:"BOL-44767", status:"yard", exp:108,picked:108,deliv:108,empt:108, date:"Jun 7"},
+  {id:"B-1020", job:"Heron Bay 9",     cust:"Parks Haven",    plant:"wl_oke", so:"SOFL-102251", po:"PH-2188",  bol:"BOL-44772", status:"yard", exp:60, picked:60, deliv:60, empt:60,  date:"Jun 6"},
+  {id:"B-1021", job:"Magnolia 301",    cust:"CJM Roofing",    plant:"eg_sum", so:"SOFL-102255", po:"CJM-112",  bol:"BOL-77061", status:"yard", exp:96, picked:96, deliv:96, empt:96,  date:"Jun 6"},
+
+  {id:"B-1004", job:"Sawgrass 78",     cust:"QXO",            plant:"cr_arc", so:"SOFL-102180", po:"QX-8640",  bol:"BOL-31204", status:"returned", exp:132,picked:132,deliv:132,empt:132, date:"Jun 3", returnRef:"RET-0091"},
+  {id:"B-1005", job:"Willow Creek 22", cust:"ABC Supply",     plant:"wl_lw",  so:"SOFL-102188", po:"ABC-5410", bol:"BOL-44690", status:"returned", exp:88, picked:88, deliv:88, empt:88,  date:"Jun 2", returnRef:"RET-0090"},
+
+  {id:"B-0987", job:"Coral Springs 5", cust:"QXO",            plant:"eg_sum", so:"SOFL-102090", po:"QX-8551",  bol:"BOL-76980", status:"credited", exp:156,picked:156,deliv:156,empt:156, date:"May 28", returnRef:"RET-0084"},
+  {id:"B-0988", job:"Indian River 41", cust:"Coastal Tile",   plant:"wl_pom", so:"SOFL-102094", po:"CT-330",   bol:"BOL-44610", status:"credited", exp:72, picked:72, deliv:72, empt:72,  date:"May 27", returnRef:"RET-0083"},
+
+  /* discrepancies */
+  {id:"B-1026", job:"Tradition 160",   cust:"ABC Supply",     plant:"wl_oke", so:"SOFL-102268", po:"ABC-5480", bol:"BOL-44781", status:"yard", exp:120,picked:108,deliv:108,empt:108, date:"Jun 8"},
+  {id:"B-1027", job:"Eagle Landing 3", cust:"Parks Haven",    plant:"eg_wpb", so:"SOFL-102272", po:"PH-2195",  bol:"BOL-77090", status:"out",  exp:72, picked:72, deliv:72, empt:66,  date:"Jun 8"},
+];
+
+let DATA = [];
+let filter = "all";
+const $ = s => document.querySelector(s);
+const money = n => "$"+n.toLocaleString("en-US");
+
+/* discrepancy: any mismatch among the counts that have been recorded */
+function discrepancy(b){
+  const pairs=[["exp","picked"],["picked","deliv"],["deliv","empt"]];
+  for(const [a,c] of pairs){
+    if(b[a]!=null && b[c]!=null && b[a]!==b[c]){
+      const delta=b[c]-b[a];
+      const labels={exp:"ordered",picked:"picked up",deliv:"delivered",empt:"empties"};
+      let why = (a==="exp"&&c==="picked") ? `Short pickup — plant owes ${Math.abs(delta)}`
+              : (c==="empt") ? `${Math.abs(delta)} empties unrecovered — lost credit`
+              : `${labels[a]} ≠ ${labels[c]}`;
+      return {delta, why, a, c, labels};
+    }
+  }
+  return null;
+}
+function latestCount(b){ return b.empt ?? b.deliv ?? b.picked ?? b.exp ?? 0; }
+function creditOf(b){ return latestCount(b) * (PLANTS[b.plant]?.rate||0); }
+
+/* ---------- Render ---------- */
+function render(){
+  const q = ($("#search")?.value||"").toLowerCase();
+  // KPIs
+  const yard = DATA.filter(b=>b.status==="yard");
+  const pend = DATA.filter(b=>b.status==="returned");
+  const disc = DATA.filter(b=>discrepancy(b));
+  const cred = DATA.filter(b=>b.status==="credited");
+  const totalPallets = DATA.reduce((s,b)=>s+latestCount(b),0);
+  const yardCredit = yard.reduce((s,b)=>s+creditOf(b),0);
+  const pendCredit = pend.reduce((s,b)=>s+creditOf(b),0);
+  const credTotal = cred.reduce((s,b)=>s+creditOf(b),0);
+  const discCost = disc.reduce((s,b)=>{const d=discrepancy(b);return s+Math.abs(d.delta)*(PLANTS[b.plant]?.rate||0)},0);
+  $("#kpis").innerHTML = `
+    <div class="kpi k-total"><div class="cap">Pallets tracked</div><div class="val">${totalPallets.toLocaleString()}</div><div class="sub">${DATA.length} active batches</div></div>
+    <div class="kpi k-yard"><div class="cap">Ready to return</div><div class="val">${yard.reduce((s,b)=>s+b.empt,0)}</div><div class="sub">${money(yardCredit)} credit · ${yard.length} batches</div></div>
+    <div class="kpi k-pend"><div class="cap">Pending credit</div><div class="val">${money(pendCredit)}</div><div class="sub">${pend.length} returns awaiting</div></div>
+    <div class="kpi k-disc ${disc.length?'alert':''}"><div class="cap">Discrepancies</div><div class="val">${disc.length}</div><div class="sub">${money(discCost)} at risk</div></div>
+    <div class="kpi k-cred"><div class="cap">Credited (MTD)</div><div class="val">${money(credTotal)}</div><div class="sub">${cred.length} returns closed</div></div>`;
+
+  // Buckets
+  $("#buckets").innerHTML = BUCKETS.map(bk=>{
+    const list = bk.key==="disc" ? DATA.filter(b=>discrepancy(b)) : DATA.filter(b=>b.status===bk.key);
+    const pall = list.reduce((s,b)=>s+latestCount(b),0);
+    return `<div class="bk ${filter===bk.key?'active':''}" onclick="setFilter('${bk.key}')">
+      <div><span class="dot d-${bk.cls}"></span><span class="nm">${bk.nm}</span></div>
+      <div class="ct">${list.length}</div><div class="pl">${pall.toLocaleString()} pallets</div></div>`;
+  }).join("") + `<div class="bk ${filter==='all'?'active':''}" onclick="setFilter('all')" style="display:none"></div>`;
+
+  // Table
+  let rows = DATA.slice();
+  if(filter==="disc") rows = rows.filter(b=>discrepancy(b));
+  else if(filter!=="all") rows = rows.filter(b=>b.status===filter);
+  if(q) rows = rows.filter(b=>(b.job+b.cust+b.so+b.po+b.bol+b.id).toLowerCase().includes(q));
+  rows.sort((a,b)=>BUCKETS.findIndex(x=>x.key===a.status)-BUCKETS.findIndex(x=>x.key===b.status));
+
+  $("#tableTitle").textContent = filter==="all" ? "All pallet batches"
+      : (filter==="disc" ? "Discrepancies — counts don't reconcile" : BUCKETS.find(x=>x.key===filter).nm);
+
+  $("#rows").innerHTML = rows.map(b=>{
+    const d = discrepancy(b);
+    const sp = STATUS_PILL[b.status];
+    const n = v => v==null ? '<span style="color:#c7c5d5">—</span>' : v;
+    return `<tr class="${d?'disc':''}" onclick="openDrawer('${b.id}')">
+      <td><div class="job">${b.job}</div><div class="cust">${b.cust} · ${b.id}</div></td>
+      <td>${PLANTS[b.plant].short}</td>
+      <td class="refs">${b.so}<br>${b.po}${b.bol?` · ${b.bol}`:''}</td>
+      <td class="num">${n(b.exp)}</td><td class="num">${n(b.picked)}</td><td class="num">${n(b.deliv)}</td>
+      <td class="num">${d?`<span class="warn">⚠ ${n(b.empt)}</span>`:n(b.empt)}</td>
+      <td>${d?`<span class="warn">⚠ ${d.why}</span>`:`<span class="pill ${sp[0]}"><span class="dot d-${BUCKETS.find(x=>x.key===b.status).cls}"></span>${sp[2]}</span>`}</td>
+      <td class="credit">${creditOf(b)?money(creditOf(b)):'—'}</td>
+    </tr>`;
+  }).join("") || `<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:34px">No batches in this bucket.</td></tr>`;
+}
+function setFilter(k){ filter = (filter===k && k!=="all") ? "all" : k; render(); }
+
+/* ---------- Drawer ---------- */
+function openDrawer(id){
+  const b = DATA.find(x=>x.id===id); if(!b) return;
+  const d = discrepancy(b); const P=PLANTS[b.plant];
+  const reconRow=(lbl,val,bad)=>`<div class="rr ${bad?'bad':''}"><span>${lbl}</span><b>${val==null?'—':val}${bad?` ⚠`:''}</b></div>`;
+  const nextStage={expected:["picked",120,"Confirm pickup (BOL)"],out:["empt",null,"Confirm empties recovered"],yard:[null,null,"Add to a return"]};
+  const adv = b.status==="expected"?`<button class="btn primary stage-btn" onclick="advance('${b.id}')">Confirm pickup →</button>`
+    : b.status==="out"?`<button class="btn primary stage-btn" onclick="advance('${b.id}')">Driver confirmed empties →</button>`
+    : b.status==="yard"?`<button class="btn primary stage-btn" onclick="closeDrawer();openReturn('${b.plant}')">Add to return →</button>`:'';
+  $("#drawerBody").innerHTML = `
+    <div class="dh"><button class="x" onclick="closeDrawer()">×</button>
+      <div style="font-size:11px;color:var(--muted);font-weight:650;letter-spacing:.4px">${b.id}</div>
+      <h3 style="margin:4px 0 2px;font-size:18px">${b.job}</h3>
+      <div style="color:var(--muted);font-size:13px">${b.cust}</div>
+    </div>
+    <div class="db">
+      <div class="kv"><span class="k">Pickup plant</span><span class="v">${P.name}</span></div>
+      <div class="kv"><span class="k">Branch</span><span class="v">${P.branch}</span></div>
+      <div class="kv"><span class="k">Sales order / pickup #</span><span class="v">${b.so}</span></div>
+      <div class="kv"><span class="k">PO #</span><span class="v">${b.po}</span></div>
+      <div class="kv"><span class="k">BOL (bill label)</span><span class="v">${b.bol||'—'}</span></div>
+      <div class="kv"><span class="k">Credit rate</span><span class="v">${money(P.rate)} / pallet</span></div>
+      <div class="kv"><span class="k">Credit value</span><span class="v">${creditOf(b)?money(creditOf(b)):'—'}</span></div>
+
+      <h4 style="margin:18px 0 8px;font-size:13px">Count reconciliation</h4>
+      <div class="recon">
+        ${reconRow("Ordered (confirmation PDF)", b.exp, false)}
+        ${reconRow("Picked up (BOL)", b.picked, d&&d.c==="picked")}
+        ${reconRow("Delivered (count photo)", b.deliv, d&&d.c==="deliv")}
+        ${reconRow("Empties recovered", b.empt, d&&d.c==="empt")}
+      </div>
+      ${d?`<div style="background:#fff5f5;border:1px solid #f5c9c9;border-radius:10px;padding:12px 14px;color:#bb2d31;font-size:12.5px;font-weight:600">⚠ ${d.why}. ${d.delta<0?'This is money — flag to the plant or recover before the credit is lost.':''}</div>`:`<div style="background:#e9f8f0;border:1px solid #bfe6cf;border-radius:10px;padding:12px 14px;color:#0f7a4f;font-size:12.5px;font-weight:600">✓ All counts reconcile.</div>`}
+
+      <h4 style="margin:18px 0 8px;font-size:13px">Documents</h4>
+      <div class="attach"><div class="ai">📄</div><div>${b.bol?`${b.bol}.pdf`:'BOL not yet attached'}<div style="font-size:11px;color:var(--muted)">Bill label · pickup receipt</div></div></div>
+      <div class="attach"><div class="ai">📷</div><div>ground-drop-count.jpg<div style="font-size:11px;color:var(--muted)">Countable pallet photo · from CompanyCam</div></div></div>
+      ${adv}
+    </div>`;
+  $("#drawer").classList.add("show");
+}
+function closeDrawer(){ $("#drawer").classList.remove("show"); }
+function advance(id){
+  const b=DATA.find(x=>x.id===id);
+  if(b.status==="expected"){ b.status="out"; b.picked=b.exp; b.deliv=b.exp; b.bol="BOL-"+(44900+Math.floor(b.exp)); toast(`Pickup confirmed for ${b.job}`);}
+  else if(b.status==="out"){ b.status="yard"; b.empt=b.empt??b.deliv; toast(`Empties recovered — ${b.job} staged at yard`);}
+  closeDrawer(); render();
+}
+
+/* ---------- Create Return ---------- */
+let returnState={plant:null, picks:{}};
+function openReturn(preset){
+  const yardPlants=[...new Set(DATA.filter(b=>b.status==="yard").map(b=>b.plant))];
+  returnState.plant = preset && yardPlants.includes(preset) ? preset : (yardPlants[0]||null);
+  returnState.picks={};
+  $("#returnTitle").textContent="Create pallet return";
+  renderReturn();
+  $("#returnScrim").classList.add("show");
+}
+function renderReturn(){
+  const yardPlants=[...new Set(DATA.filter(b=>b.status==="yard").map(b=>b.plant))];
+  if(!yardPlants.length){ $("#returnBody").innerHTML=`<p style="color:var(--muted)">No empties staged at the yard right now. Move batches to <b>At yard</b> first.</p>`; $("#returnFoot").innerHTML=`<button class="btn" onclick="closeModal('returnScrim')">Close</button>`; return;}
+  if(!yardPlants.includes(returnState.plant)) returnState.plant=yardPlants[0];
+  const batches=DATA.filter(b=>b.status==="yard"&&b.plant===returnState.plant);
+  batches.forEach(b=>{ if(returnState.picks[b.id]===undefined) returnState.picks[b.id]=true; });
+  const chosen=batches.filter(b=>returnState.picks[b.id]);
+  const pallets=chosen.reduce((s,b)=>s+b.empt,0);
+  const credit=chosen.reduce((s,b)=>s+creditOf(b),0);
+  const P=PLANTS[returnState.plant];
+  $("#returnBody").innerHTML=`
+    <div class="field"><label>Return to plant</label>
+      <select onchange="returnState.plant=this.value;returnState.picks={};renderReturn()">
+        ${yardPlants.map(p=>`<option value="${p}" ${p===returnState.plant?'selected':''}>${PLANTS[p].name} (${PLANTS[p].branch}) · ${money(PLANTS[p].rate)}/pallet</option>`).join("")}
+      </select></div>
+    <label style="font-size:12px;font-weight:650;color:var(--muted)">Empties staged at yard for this plant</label>
+    <div style="margin-top:8px">
+    ${batches.map(b=>`<div class="retrow">
+        <input type="checkbox" ${returnState.picks[b.id]?'checked':''} onchange="returnState.picks['${b.id}']=this.checked;renderReturn()">
+        <div class="g"><b>${b.job}</b> · ${b.cust}<span>${b.so} · ${b.empt} pallets · ${money(creditOf(b))}</span></div>
+      </div>`).join("")}
+    </div>
+    <div class="rettot"><div><div style="font-size:12px;color:var(--muted);font-weight:650">${chosen.length} batches → ${P.short}</div><div style="font-size:13px;margin-top:2px">${pallets} empty pallets</div></div>
+      <div style="text-align:right"><div style="font-size:12px;color:var(--muted);font-weight:650">Customer credit total</div><div class="big">${money(credit)}</div></div></div>`;
+  $("#returnFoot").innerHTML=`<button class="btn" onclick="closeModal('returnScrim')">Cancel</button>
+    <button class="btn primary" ${chosen.length?'':'disabled'} onclick="generateSheet()">Generate return sheet →</button>`;
+}
+function generateSheet(){
+  const P=PLANTS[returnState.plant];
+  const chosen=DATA.filter(b=>b.status==="yard"&&b.plant===returnState.plant&&returnState.picks[b.id]);
+  const pallets=chosen.reduce((s,b)=>s+b.empt,0);
+  const credit=chosen.reduce((s,b)=>s+creditOf(b),0);
+  const ref="RET-"+String(92+Math.floor(pallets%7)).padStart(4,"0");
+  $("#returnTitle").textContent="Return sheet — ready to send";
+  $("#returnBody").innerHTML=`
+    <div class="sheet" id="sheet">
+      <div class="sh"><div><h2>Pallet Return</h2><div style="color:var(--muted);font-size:12px;margin-top:3px">J&amp;J Loading LLC</div></div>
+        <div class="meta"><b>${ref}</b><br>To: ${P.name}<br>Branch ${P.branch}<br>Date: Jun 10, 2026</div></div>
+      <table><thead><tr><th>Sales order / pickup #</th><th>Customer (credit to)</th><th>BOL</th><th style="text-align:right">Pallets</th><th style="text-align:right">Credit</th></tr></thead>
+      <tbody>${chosen.map(b=>`<tr><td>${b.so}</td><td>${b.cust}</td><td>${b.bol||'—'}</td><td style="text-align:right">${b.empt}</td><td style="text-align:right">${money(creditOf(b))}</td></tr>`).join("")}</tbody>
+      <tfoot><tr><td colspan="3">Total — ${chosen.length} batches @ ${money(P.rate)}/pallet</td><td style="text-align:right">${pallets}</td><td style="text-align:right">${money(credit)}</td></tr></tfoot></table>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:12px">In the live system this generates a PDF + emails the plant, and each customer's credit posts to their running balance automatically.</p>`;
+  $("#returnFoot").innerHTML=`<button class="btn" onclick="renderReturn()">← Back</button>
+    <button class="btn" onclick="toast('Return sheet PDF generated')">⬇ Download PDF</button>
+    <button class="btn primary" onclick="confirmReturn('${ref}')">Mark shipped →</button>`;
+}
+function confirmReturn(ref){
+  const chosen=DATA.filter(b=>b.status==="yard"&&b.plant===returnState.plant&&returnState.picks[b.id]);
+  chosen.forEach(b=>{ b.status="returned"; b.returnRef=ref; });
+  closeModal('returnScrim');
+  toast(`${ref} shipped · ${chosen.length} batches moved to Pending credit`);
+  render();
+}
+
+/* ---------- misc ---------- */
+function addBatch(){
+  const id="B-"+(1044+DATA.length);
+  DATA.unshift({id,job:"New job (untitled)",cust:"QXO",plant:"wl_oke",so:"SOFL-1024"+(70+DATA.length),po:"QX-89"+(DATA.length),bol:"",status:"expected",exp:96,picked:null,deliv:null,empt:null,date:"Jun 11"});
+  setFilter("expected"); toast("Batch added to Expected — edit details in the drawer");
+}
+function runImport(){
+  $("#emptyState").style.display="none"; $("#app").style.display="block";
+  DATA=[]; render();
+  // animate rows populating, like a live import
+  let i=0;
+  const tick=()=>{ if(i<SEED.length){ DATA.push(JSON.parse(JSON.stringify(SEED[i]))); i++; render(); setTimeout(tick,70);}
+    else { const pall=DATA.reduce((s,b)=>s+latestCount(b),0); toast(`Imported ${DATA.length} batches · ${pall.toLocaleString()} pallets from JJ-Pallet-Returns.numbers`); } };
+  tick();
+}
+function resetDemo(){ $("#app").style.display="none"; $("#emptyState").style.display="block"; filter="all"; }
+function closeModal(id){ $("#"+id).classList.remove("show"); }
+let toastT;
+function toast(msg){ const t=$("#toast"); t.innerHTML=`<span class="ck">✓</span> ${msg}`; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),3200); }
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"){closeDrawer();closeModal('returnScrim');} });
+</script>
+</body>
+</html>
